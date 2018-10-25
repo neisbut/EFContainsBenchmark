@@ -22,3 +22,11 @@ The following approaches are used
 - Predicate building: dynamically build Where clause using lots of AND.. AND.. OR
 - Shared query table in database: via uploading value for query to the database and query using join to that table
 - Using MemoryJoin extension (described [in this article](http://tsherlock.tech/2018/03/20/joining-in-memory-list-to-entity-framework-query/))
+
+* * *
+>
+> This sample is published as part of the corresponding blog article at https://www.toptal.com/blog
+>
+> Visit https://www.toptal.com/blog and subscribe to our newsletter to read great posts!
+>
+> * * *
