@@ -11,6 +11,8 @@ using System.Linq.Expressions;
 using System.Collections.Concurrent;
 using System.Threading.Tasks;
 using System.Reflection;
+using System.Data.Common;
+using Newtonsoft.Json;
 
 namespace EFContainsBenchmark
 {
@@ -18,7 +20,7 @@ namespace EFContainsBenchmark
     {
         static int MaxTestData;
         static List<TestData> TestData;
-        static string[] CaseNames = new[] { "Naive", "Naive (parallel)", "Contains", "Predicate Builder", "Shared Table", "MemoryJoin" };
+        static string[] CaseNames = new[] { "Naive", "Naive (parallel)", "Contains", "Predicate Builder", "Shared Table", "MemoryJoin", "Stored Proc" };
         static TimeSpan MaxExpectedTime = TimeSpan.FromMinutes(10);
 
         static BenchmarkContext CreateContextAndSeed()
@@ -268,6 +270,35 @@ namespace EFContainsBenchmark
             result.Clear();
         }
 
+        public static void TestStoredProc()
+        {
+            var result = new List<Price>();
+            using (var context = CreateContext())
+            {
+                var reducedData = TestData.Select(x => new
+                {
+                    ticker = x.Ticker,
+                    traded_on = x.TradedOn,
+                    price_source_id = x.PriceSourceId
+                }).ToList();
+                var json = JsonConvert.SerializeObject(reducedData);
+
+                var cmd = context.Database.GetDbConnection().CreateCommand();
+                var p = cmd.CreateParameter();
+                p.ParameterName = "@json";
+                p.Value = json;
+                var data = context.Prices.FromSql(
+                    "SELECT * FROM get_prices(@json)",
+                    p
+                );
+
+                result.AddRange(data);
+            }
+
+
+            result.Clear();
+        }
+
         public static void RunLocalSingleTest(int testNumber, int testDataCount, int runCount)
         {
             MaxTestData = testDataCount;
@@ -278,7 +309,8 @@ namespace EFContainsBenchmark
                 TestPhase3Contains,
                 TestPhaseBuilder,
                 TestPhaseSharedQueryModel,
-                TestPhaseMemJoin
+                TestPhaseMemJoin,
+                TestStoredProc
             };
 
             var testCase = cases[testNumber - 1];
@@ -360,7 +392,7 @@ namespace EFContainsBenchmark
 
         public static void RunRemoteAllTests()
         {
-            var testCases = new[] { 1, 2, 3, 4, 5, 6 };
+            var testCases = new[] { 1, 2, 3, 4, 5, 6, 7 };
             var testDataCounts = new[] { 50, 300, 1800, 10800, 64800 };
             var runCounts = new[] { 10 };
             var combinations = from tn in testCases
@@ -377,7 +409,7 @@ namespace EFContainsBenchmark
                 if (!skipTestCases.Contains(testCase.tn))
                 {
                     var timeSpent = RunRemoteTest(testCase.tn, testCase.tdc, testCase.rc);
-                    
+
                     // If timing for current case multiplied 6 (step for next test data count value)
                     //   is longer than 1.5*MaxExpectedTime then we can be sure that next
                     //   step will NOT fit into MaxExpectedTime and we can FAIL and skip next steps
